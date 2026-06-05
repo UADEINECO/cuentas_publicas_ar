@@ -23,6 +23,12 @@ MESES_ES = {
     "septiembre": 9, "sep": 9, "octubre": 10, "noviembre": 11, "diciembre": 12,
 }
 
+# Abreviaturas de 3 letras para el formato "ene-22", "feb-22", etc.
+MESES_ABREV = {
+    "ene": 1, "feb": 2, "mar": 3, "abr": 4, "may": 5, "jun": 6,
+    "jul": 7, "ago": 8, "sep": 9, "oct": 10, "nov": 11, "dic": 12,
+}
+
 IMIG_CONTENT_MARKERS = ["INGRESOS TOTALES", "GASTOS PRIMARIOS", "RESULTADO PRIMARIO",
                         "INGRESOS Y GASTOS", "IMIG"]
 
@@ -48,9 +54,19 @@ def _extract_date_from_cell(cell) -> tuple[int, int] | None:
         except Exception:
             pass
     if isinstance(cell, str):
+        # Formato ISO: 2022-06-01
         m = re.search(r"(20\d{2})[/\-\.](\d{1,2})[/\-\.](\d{1,2})", cell)
         if m:
             return int(m.group(1)), int(m.group(2))
+        # Formato abreviado español: "ene-22", "jun-22", etc.
+        m = re.match(r"^([a-z]{3})[.\-/](\d{2})$", cell.strip().lower())
+        if m:
+            mes_str, yy = m.group(1), m.group(2)
+            mes_num = MESES_ABREV.get(mes_str)
+            if mes_num:
+                year = 2000 + int(yy)
+                if 2018 <= year <= 2026:
+                    return year, mes_num
     return None
 
 
@@ -96,8 +112,17 @@ def _is_stop(cell_text: str) -> bool:
 
 CONCEPTO_IMIG_NORMALIZE = {
     r"INGRESOS TOTALES": "INGRESOS_TOTALES",
+    # ── Conceptos con prioridad ALTA (mas especificos primero) ──────────
+    # Jubilaciones debe ir ANTES de IVA porque "CONTRIBUTIVAS" contiene "IVA"
+    r"JUBILACIONES Y PENSIONES": "Jubilaciones_pensiones",
+    r"PENSIONES NO CONTRIBUTIVAS": "Pensiones_no_contributivas",
+    r"ASIGNACI.N UNIVERSAL|ASIGNACION UNIVERSAL": "AUH",
+    r"ASIGNACIONES FAMILIARES": "Asignaciones_familiares",
+    r"INSSJP|PRESTACIONES DEL INSSJP": "INSSJP_PAMI",
+    r"OTROS PROGRAMAS SOCIALES|OTRAS PROGRAMOS": "Otros_prog_sociales",
+    # ── Ingresos tributarios ────────────────────────────────────────────
     r"TRIBUTARIOS": "Tributarios",
-    r"IVA": "IVA_neto_reintegros",
+    r"\bIVA\b|IVA NETO": "IVA_neto_reintegros",   # \b = word boundary, evita "CONTRIBUTIVAS"
     r"GANANCIAS": "Ganancias",
     r"APORTES.*SEGURI": "Aportes_contrib_seg_social",
     r"D.BITOS Y CR.DITOS|DEBITOS Y CREDITOS": "Debitos_creditos",
@@ -111,15 +136,10 @@ CONCEPTO_IMIG_NORMALIZE = {
     r"OTROS INGRESOS CORRIENTES": "Otros_ingresos_corrientes",
     r"INGRESOS NO TRIBUTARIOS|INGRESOS NO IMPOSITIVOS": "Ingresos_no_tributarios",
     r"INGRESOS DE CAPITAL": "Ingresos_capital",
+    # ── Gastos ──────────────────────────────────────────────────────────
     r"GASTOS PRIMARIOS": "GASTOS_PRIMARIOS",
     r"GASTOS CORRIENTES PRIMARIOS": "Gastos_corrientes_primarios",
     r"PRESTACIONES SOCIALES": "Prestaciones_sociales",
-    r"JUBILACIONES Y PENSIONES": "Jubilaciones_pensiones",
-    r"ASIGNACION UNIVERSAL": "AUH",
-    r"ASIGNACIONES FAMILIARES": "Asignaciones_familiares",
-    r"PENSIONES NO CONTRIBUTIVAS": "Pensiones_no_contributivas",
-    r"INSSJP|PAMI": "INSSJP_PAMI",
-    r"OTROS PROGRAMAS SOCIALES|OTRAS PROGRAMOS": "Otros_prog_sociales",
     r"SUBSIDIOS ECON": "Subsidios_economicos",
     r"ENERG.A|ENERGIA": "Subsidios_energia",
     r"TRANSPORTE": "Subsidios_transporte",
