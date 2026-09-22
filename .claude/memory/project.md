@@ -9,6 +9,47 @@ Consolidar datos del Sector Publico Nacional argentino (Hacienda) en un dataset 
 - Notebook 01 Colab: https://colab.research.google.com/github/santiagoriverti/cuentas_publicas/blob/main/notebooks/01_consolidar.ipynb
 - Notebook 02 Colab: https://colab.research.google.com/github/santiagoriverti/cuentas_publicas/blob/main/notebooks/02_analisis_fiscal.ipynb
 
+## HANDOFF — estado al 2026-09-22 (para retomar en otro chat)
+Datos hasta AGOSTO 2026. Deflactor base = ago-2026 (IPC 12.276,766, auto = ultimo mes IPC).
+Ambos notebooks ejecutados end-to-end local (nbconvert con URLs redirigidas a disco): 0 errores.
+Cifras clave base ago-2026: gasto prim. 2023 296,7 B -> 2024 204,6 B (-31,1%), 2025 208,5 B;
+ajuste gp 2023->2024 = -92,1 B; mejora primaria +5,4 pp PIB (los % no cambian con la base).
+
+HECHO CICLO SEP-2026:
+- Incorporados jun y ago 2026 (AIF "Junio 26.xlsx"/"Agosto 26.xlsx" + "IMIG Junio/Agosto 2026.xlsx").
+- JUL-2026 NO publicado por Hacienda (la web salta de junio a agosto). Se completa asi:
+  * AIF: consolidate._derivar_mensuales_aif -> mens(jul) = acum(ago) - acum(jun) - mens(ago).
+    Metodo validado EXACTO (dif 0,0 M$ en 350 concepto x subsector) contra abr/may/jun-2026.
+    fuente_archivo = "derivado: ...". (jun-2022 sigue sin poder derivarse: no hay acum may-22.)
+  * IMIG: hoja "Mensualizacion" de los IMIG 2026 (una col por mes del ano). Validada exacta
+    vs hojas mensuales. Completa JUL-2026 y tambien MAR-2026 (antes "gap permanente": RESUELTO).
+    fuente_archivo = "<archivo> [Mensualizacion]". IMIG ahora cobertura completa 2019-01..2026-08.
+- IMIG una fuente por mes (consolidate._una_fuente_por_mes_imig): prioridad
+  0=publicacion original, 1=Mensualizacion, 2=columna comparativa de otro archivo.
+  Motivo: los archivos del ano siguiente traen el mismo mes del ano anterior con valores
+  REVISADOS/reclasificados (ej. Salud abr-25: 6.260 vs 66.920 original). Antes el dedup del
+  NB02 mezclaba versiones segun orden de filas. IMIG CSV bajo de 8.745 a 4.931 filas.
+- BUG CORREGIDO imig_parser.detect_value_columns: leia fechas en filas de datos; un valor
+  ~45.000 M$ en resultado_fiscal_mayo-20.xls se tomaba como serial Excel = 2023-03 ->
+  mar-2023 IMIG tenia valores de may-2019 (gasto prim. 294.374 vs real 1.984.632 M$).
+  IMPACTO en informe de junio: rubros IMIG 2023 subestimados ~4-5% (torta, barras, tab:imig,
+  Recorte_IMIG). Cifras AIF (principales) NO afectadas. Ahora solo busca fechas en encabezado
+  (antes de INGRESOS TOTALES), 1 fecha por columna, tope de ano = ano actual+1 (antes 2026 fijo).
+- IPC: agregados jun/jul/ago-2026 Nivel General desde API datos.gob.ar serie
+  148.3_INIVELNAL_DICI_M_26 (coincide con archivo, dif max 0,09). Divisiones de esos 3 meses
+  vacias (NB solo usa "Nivel general").
+- NB02: "(5 meses)" ahora dinamico ({_n26} meses). NB01: markdown de cobertura actualizado.
+
+PROXIMO PASO ABIERTO:
+- Informe LaTeX de prensa (el usuario lo tiene en chat, NO esta en repo): rebasear ahora a
+  AGOSTO 2026 (ya no mayo) usando hojas Informe_valores y Tablas_LaTeX del Excel NB02.
+  Ojo: seccion IMIG 2023 cambia ademas por el fix de mar-2023.
+- Decision pendiente titulo ajuste gasto primario (regla sin-redondear vs resta de redondeados).
+
+GAPS CONOCIDOS: AIF mensual jun-2022 (solo acumulado I Sem, no derivable).
+
+SEGURIDAD: rotar PAT usado en junio; usar Git Credential Manager.
+
 ## Fuente de datos
 - URL: https://www.argentina.gob.ar/economia/sechacienda/infoestadistica
 - ZIP: data/raw/sector_publico.zip (gitignored). consolidate.py AUTODETECTA
@@ -18,7 +59,7 @@ Consolidar datos del Sector Publico Nacional argentino (Hacienda) en un dataset 
 - IPC INDEC: data/reference/IPC.xlsx (commiteado, ene-2017 a may-2026)
 - 80 archivos Excel, cobertura ene-2020 a may-2026
 - Gap unico AIF mensual: Jun-2022 (solo existe acumulado I Semestre)
-- Gap unico IMIG: 2026-03. PERMANENTE: Hacienda NO publico informe IMIG de marzo 2026,
+- [RESUELTO sep-2026 via hoja Mensualizacion] Antes gap IMIG 2026-03: Hacienda NO publico informe IMIG de marzo 2026,
   solo el AIF (marzo_26.xlsx, hojas Marzo/Acumulado, sin IMIG). Confirmado con el usuario
   (2026-06-18). No se puede reconstruir desde el AIF (desagregacion funcional distinta).
   No afecta graficos (IMIG solo usa 2023-2025 anual). NO volver a marcarlo como "a descargar".
@@ -82,7 +123,17 @@ Excel (7 hojas): Serie_mensual | Resumen_anual | Transferencias_prov |
   + primario_pct_PIB + financiero_pct_PIB. Construida en celda 9, exportada en celda 10.
 - Informe_provincias (2026-06-18): transf. a prov subsector total_adm_nacional, real, B,
   corrientes/capital/total + pct_gasto_primario (vs Gasto_real Sector Publico Total).
+  REGLA: total y pct se calculan desde valores SIN redondear (suma cruda -> 2024=2,7/1,4%,
+  no 2,6/1,3%). Misma regla en Informe_valores y Tablas_LaTeX.
+- Informe_valores (2026-06-18): tabla larga (seccion/clave/descripcion/valor_num/valor_fmt/
+  unidad) con TODOS los valores citados en el informe LaTeX. unidad in {B,%,pp_PIB,meses,texto}.
+- Tablas_LaTeX (2026-06-18): columna 'latex' con los 5 bloques de filas de datos de las tablas
+  del informe (tab:01, composicion_gasto, ing_gasto_anual, prov, imig), encabezados "% === label ===".
+  Tambien escribe 5 .tex en disco -> al ZIP. Ahora ZIP = Excel + 7 PNG + 5 .tex (13 archivos).
+- *.tex y *.png en .gitignore (generados).
 - Edicion de celdas 9/10 se hizo via JSON con Python (splitlines keepends), NO NotebookEdit.
+- OJO base may-2026 + regla sin-redondear: gp_ajuste 2023->2024 = -87,1 B (doc decia -87,2 por
+  restar redondeados); torta salarios 12,0 / transf 8,9 / otros 21,7 (doc 12,1/8,7/21,8). Correcto.
 
 Descarga: analisis_fiscal.zip (7 PNG + Excel)
 
@@ -172,7 +223,10 @@ OJO endpoint: may-2026 es mes de CUPON de deuda (intereses altos) → intereses 
 4. Notebooks en Colab se actualizan automaticamente
 
 ## Pendiente
+- [ ] PRINCIPAL: aplicar reemplazos base may-2026 al documento LaTeX del informe INECO
+      (ver seccion HANDOFF; pedir el .tex al usuario). Fuente: hojas Informe_valores / Tablas_LaTeX.
 - [ ] Datos provinciales MECON por jurisdiccion
 - [x] IPC actualizado a may-2026 (2026-06-18)
 - [ ] IPC: actualizar cuando salgan nuevos meses (junio 2026+)
 - [ ] Consolidacion intra-sector para % provincias/ajuste mas preciso
+- [ ] Seguridad: rotar PAT expuesto en chat + limpiar token del remote (usar GCM)
